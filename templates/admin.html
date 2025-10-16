@@ -143,18 +143,112 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {
+    // Modal elementlerini seç
+    const modal = document.getElementById('eventModal');
+    const closeButton = document.querySelector('.close-button');
+    const eventForm = document.getElementById('eventForm');
+    const eventDateField = document.getElementById('eventDate');
+    const modalTitle = document.getElementById('modalTitle');
+
+    // Takvimi render et
     var calendarEl = document.getElementById('calendar');
     var calendar = new FullCalendar.Calendar(calendarEl, {
-      initialView: 'dayGridMonth', // Aylık görünümle başla
-      headerToolbar: {
-        left: 'prev,next today',
-        center: 'title',
-        right: 'dayGridMonth,timeGridWeek,timeGridDay' // Farklı görünümler için butonlar
-      },
-      events: '/api/events' // Randevu verilerini bu adresten çek
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        events: '/api/events',
+        selectable: true, // Takvimde seçim yapmayı aktif et
+
+        // Bir güne tıklandığında bu fonksiyon çalışır
+        dateClick: function(info) {
+            eventForm.reset(); // Formu temizle
+            eventDateField.value = info.dateStr; // Tıklanan tarihi gizli alana ata
+            modalTitle.innerText = `Add Event for ${info.dateStr}`;
+            modal.style.display = 'block'; // Modalı göster
+        }
     });
     calendar.render();
-  });
+
+    // Modal kapatma butonları
+    closeButton.onclick = function() {
+        modal.style.display = 'none';
+    }
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    // Form gönderildiğinde
+    eventForm.addEventListener('submit', function(e) {
+        e.preventDefault(); // Sayfanın yenilenmesini engelle
+
+        const formData = new FormData(eventForm);
+        const data = Object.fromEntries(formData.entries());
+
+        // Sunucuya yeni randevu verisini gönder
+        fetch('/api/add_event', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        })
+        .then(response => response.json())
+        .then(result => {
+            if(result.success) {
+                modal.style.display = 'none'; // Modalı gizle
+                calendar.refetchEvents(); // Takvimi yenile
+                alert('Event saved successfully!');
+            } else {
+                alert('Error: ' + result.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An unexpected error occurred.');
+        });
+    });
+});
 </script>
+
+<div id="eventModal" class="modal">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h3 id="modalTitle">Add/Block Time</h3>
+        <form id="eventForm">
+            <input type="hidden" id="eventDate" name="date">
+
+            <div class="form-group">
+                <label for="eventTime" class="form-label">Time</label>
+                <input type="time" id="eventTime" name="time" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="eventName" class="form-label">Client Name</label>
+                <input type="text" id="eventName" name="name" class="form-control" placeholder="Leave blank if blocking time">
+            </div>
+
+            <div class="form-group">
+                <label for="eventPhone" class="form-label">Phone</label>
+                <input type="text" id="eventPhone" name="phone" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label for="eventStatus" class="form-label">Action</label>
+                <select id="eventStatus" name="status" class="form-control">
+                    <option value="booked">Book Appointment</option>
+                    <option value="blocked">Block This Time</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+</div>
 {% endblock %}
+

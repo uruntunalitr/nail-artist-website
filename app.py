@@ -245,6 +245,42 @@ def get_events():
         })
     return jsonify(event_list)
 
+@app.route('/api/add_event', methods=['POST'])
+def add_event():
+    if 'admin_logged_in' not in session:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    data = request.get_json()
+
+    # Gerekli verilerin gelip gelmediğini kontrol et
+    if not data.get('date') or not data.get('time') or not data.get('status'):
+        return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+
+    # Eğer statü "booked" ise, isim ve telefon zorunlu
+    if data['status'] == 'booked' and (not data.get('name') or not data.get('phone')):
+        return jsonify({'success': False, 'error': 'Client name and phone are required for bookings'}), 400
+
+    # Eğer statü "blocked" ise, isim ve telefonu standart bir değere ata
+    if data['status'] == 'blocked':
+        data['name'] = 'Blocked'
+        data['phone'] = '-'
+
+    try:
+        new_appointment = Appointment(
+            name=data['name'],
+            phone=data['phone'],
+            date=data['date'],
+            time=data['time'],
+            message='', # Admin eklediği için mesaj boş olabilir
+            status=data['status']
+        )
+        db.session.add(new_appointment)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
