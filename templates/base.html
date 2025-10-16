@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Nail Artist</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="main-header">
+        <nav class="navbar">
+            <a href="{{ url_for('index') }}" class="nav-logo">Funda Turalı Nail Artist</a>
+            <ul class="nav-menu">
+                <li class="nav-item"><a href="{{ url_for('index') }}">Home</a></li>
+                <li class="nav-item"><a href="{{ url_for('gallery') }}">Gallery</a></li>
+                <li class="nav-item"><a href="{{ url_for('book') }}" class="nav-link-button">Book Now</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="container">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="main-footer">
+        <p>&copy; 2025 Funda Turalı Nail Artist. All Rights Reserved.</p>
+    </footer>
+
+    <script src="https://unpkg.com/masonry-layout@4/dist/masonry.pkgd.min.js"></script>
+</body>
+</html>

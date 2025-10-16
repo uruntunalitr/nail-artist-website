@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block content %}
+<div class="container page-section">
+    <div class="dashboard-header">
+        <h1 class="page-title">Admin Dashboard</h1>
+        <p>Welcome back! Manage your appointments and gallery from here.</p>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="card">
+            <div class="card-header">
+                <h3>Upload New Photo</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    {{ photo_form.hidden_tag() }}
+                    <div class="form-group">
+                        {{ photo_form.photo(class="form-control") }}
+                    </div>
+                    {{ photo_form.submit_photo(class="btn btn-primary") }}
+                </form>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">
+                <h3>Upload New Video</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    {{ video_form.hidden_tag() }}
+                    <div class="form-group">
+                        {{ video_form.video(class="form-control") }}
+                    </div>
+                    {{ video_form.submit_video(class="btn btn-primary") }}
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <div class="card">
+        <div class="card-header">
+            <h3>Appointment Calendar</h3>
+        </div>
+        <div class="card-body">
+            <div id="calendar"></div>
+        </div>
+    </div>
+
+    <hr class="section-divider">
+
+    <div class="card">
+        <div class="card-header">
+            <h3>Manage Gallery</h3>
+        </div>
+        <div class="card-body">            
+            <h4>Photos</h4>
+            <div class="manage-gallery-grid">
+                {% for photo in photos %}
+                <div class="gallery-item-manage">
+                    <img src="{{ url_for('static', filename='uploads/' + photo.filename) }}">
+                    <div class="item-actions">
+                        <a href="{{ url_for('move_item', item_type='photo', item_id=photo.id, direction='up') }}" class="btn btn-action move-btn">↑</a>
+                        <a href="{{ url_for('move_item', item_type='photo', item_id=photo.id, direction='down') }}" class="btn btn-action move-btn">↓</a>
+                        <form action="{{ url_for('delete_photo', photo_id=photo.id) }}" method="POST" onsubmit="return confirm('Delete this photo?');">
+                            <button type="submit" class="btn btn-danger btn-small">Delete</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <hr>
+
+            <h4>Videos</h4>
+            <div class="manage-gallery-grid">
+                {% for video in videos %}
+                <div class="gallery-item-manage">
+                    <video controls src="{{ url_for('static', filename='uploads/' + video.filename) }}"></video>
+                    <div class="item-actions">
+                        <a href="{{ url_for('move_item', item_type='video', item_id=video.id, direction='up') }}" class="btn btn-action move-btn">↑</a>
+                        <a href="{{ url_for('move_item', item_type='video', item_id=video.id, direction='down') }}" class="btn btn-action move-btn">↓</a>
+                        <form action="{{ url_for('delete_video', video_id=video.id) }}" method="POST" onsubmit="return confirm('Delete this video?');">
+                            <button type="submit" class="btn btn-danger btn-small">Delete Video</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Find all the move buttons
+    const moveButtons = document.querySelectorAll('.move-btn');
+
+    moveButtons.forEach(button => {
+        button.addEventListener('click', function(event) {
+            // 1. Prevent the link from causing a page refresh
+            event.preventDefault();
+
+            const url = this.href;
+            const direction = url.endsWith('up') ? 'up' : 'down';
+            const itemToMove = this.closest('.gallery-item-manage');
+
+            // 2. Send the request to the server in the background
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 3. If successful, visually move the item on the page
+                        if (direction === 'up') {
+                            const previousItem = itemToMove.previousElementSibling;
+                            if (previousItem) {
+                                // Move the item before its previous sibling
+                                previousItem.parentNode.insertBefore(itemToMove, previousItem);
+                            }
+                        } else { // direction is 'down'
+                            const nextItem = itemToMove.nextElementSibling;
+                            if (nextItem) {
+                                // Move the item after its next sibling
+                                nextItem.parentNode.insertBefore(itemToMove, nextItem.nextSibling);
+                            }
+                        }
+                    } else {
+                        // Optional: Log an error if the move wasn't possible
+                        console.error('Could not move item:', data.error);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        });
+    });
+});
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+      initialView: 'dayGridMonth', // Aylık görünümle başla
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,timeGridWeek,timeGridDay' // Farklı görünümler için butonlar
+      },
+      events: '/api/events' // Randevu verilerini bu adresten çek
+    });
+    calendar.render();
+  });
+</script>
+{% endblock %}
