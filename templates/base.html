@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     
+    
     {% block styles %}{% endblock %}
 </head>
 <body>
@@ -44,7 +45,7 @@
     </footer>
 
     <script src="https://unpkg.com/masonry-layout@4/dist/masonry.pkgd.min.js"></script>
-    
+    <script src="https://unpkg.com/imask"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

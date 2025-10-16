@@ -503,3 +503,21 @@ th {
     color: white !important;
     text-shadow: 1px 1px 2px black;
 }
+
+
+/* --- Modal Detay Stilleri --- */
+.modal-body {
+    padding: 15px 0;
+    border-top: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+    margin: 15px 0;
+}
+
+.modal-body p {
+    margin: 5px 0;
+}
+
+.modal-footer {
+    text-align: right;
+}
+

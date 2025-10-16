@@ -114,6 +114,23 @@
         </form>
     </div>
 </div>
+
+<div id="detailsModal" class="modal">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h3 id="detailsTitle">Appointment Details</h3>
+        <div id="detailsBody" class="modal-body">
+            <p><strong>Client:</strong> <span id="detailsName"></span></p>
+            <p><strong>Phone:</strong> <span id="detailsPhone"></span></p>
+            <p><strong>Date:</strong> <span id="detailsDate"></span></p>
+            <p><strong>Time:</strong> <span id="detailsTime"></span></p>
+            <p><strong>Message:</strong> <span id="detailsMessage"></span></p>
+        </div>
+        <div class="modal-footer">
+            <button id="deleteEventBtn" class="btn btn-danger">Delete</button>
+            </div>
+    </div>
+</div>
 {% endblock %}
 
 
@@ -184,22 +201,97 @@ document.addEventListener('DOMContentLoaded', function() {
                 return ['fc-event-booked'];
             },
             eventDrop: function(info) {
-                if (!confirm("Are you sure?")) { info.revert(); return; }
-                fetch(`/api/update_event/${info.event.id}`, {
+                if (!confirm("Are you sure you want to move this appointment?")) {
+                    info.revert(); // Kullanıcı iptal ederse değişikliği geri al
+                    return;
+                }
+
+                const eventId = info.event.id;
+                
+                // --- ÇÖZÜM BAŞLANGICI ---
+                // Tarihi, saat diliminden etkilenmeyecek şekilde manuel olarak formatla
+                const d = info.event.start; // Sürüklenen yerin yerel saatini al
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const hours = String(d.getHours()).padStart(2, '0');
+                const minutes = String(d.getMinutes()).padStart(2, '0');
+                const localISOString = `${year}-${month}-${day}T${hours}:${minutes}:00`;
+                // --- ÇÖZÜM SONU ---
+
+                fetch(`/api/update_event/${eventId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ start: info.event.start.toISOString() })
-                }).then(res => res.json()).then(result => {
-                    if (!result.success) { alert('Error: ' + result.error); info.revert(); }
-                }).catch(() => { alert('Error'); info.revert(); });
+                    // Sunucuya artık UTC'ye çevrilmemiş yerel saati gönderiyoruz
+                    body: JSON.stringify({ start: localISOString }) 
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        calendar.refetchEvents(); 
+                    } else {
+                        alert('Error updating event: ' + result.error);
+                        info.revert();
+                    }
+                }).catch(error => {
+                    alert('An unexpected error occurred.');
+                    info.revert();
+                });
             },
             eventClick: function(info) {
-                if (confirm(`Delete '${info.event.title}'?`)) {
-                    fetch(`/api/delete_event/${info.event.id}`, { method: 'POST' })
-                    .then(res => res.json()).then(result => {
-                        if (result.success) info.event.remove();
-                        else alert('Error: ' + result.error);
-                    }).catch(() => alert('Error'));
+                // "Blocked" zamanlara tıklanırsa bir şey yapma
+                if (info.event.extendedProps.status === 'blocked') {
+                    if (confirm(`'${info.event.title}' zaman bloğunu kaldırmak istiyor musunuz?`)) {
+                        // Silme mantığı burada da çalışabilir
+                        fetch(`/api/delete_event/${info.event.id}`, { method: 'POST' })
+                            .then(res => res.json()).then(result => {
+                                if (result.success) info.event.remove();
+                                else alert('Error: ' + result.error);
+                            }).catch(() => alert('Error'));
+                    }
+                    return;
+                }
+
+                // --- Yeni Modal Elementlerini Seç ---
+                const detailsModal = document.getElementById('detailsModal');
+                const closeBtn = detailsModal.querySelector('.close-button');
+                const deleteBtn = document.getElementById('deleteEventBtn');
+
+                // --- Modal'ı Doldur ---
+                document.getElementById('detailsTitle').innerText = `Details for ${info.event.title}`;
+                document.getElementById('detailsName').innerText = info.event.title;
+                document.getElementById('detailsPhone').innerText = info.event.extendedProps.phone;
+                document.getElementById('detailsDate').innerText = info.event.extendedProps.date;
+                document.getElementById('detailsTime').innerText = info.event.extendedProps.time;
+                document.getElementById('detailsMessage').innerText = info.event.extendedProps.message || 'No message provided.';
+
+                // --- Modal'ı Göster ---
+                detailsModal.style.display = 'block';
+
+                // --- Buton Olay Yöneticileri ---
+                // Silme Butonu
+                deleteBtn.onclick = function() {
+                    if (confirm(`'${info.event.title}' randevusunu silmek istediğinizden emin misiniz?`)) {
+                        fetch(`/api/delete_event/${info.event.id}`, { method: 'POST' })
+                        .then(res => res.json()).then(result => {
+                            if (result.success) {
+                                detailsModal.style.display = 'none'; // Pencereyi kapat
+                                info.event.remove(); // Takvimden kaldır
+                            } else {
+                                alert('Error deleting event: ' + result.error);
+                            }
+                        }).catch(() => alert('An unexpected error occurred.'));
+                    }
+                }
+
+                // Kapatma Butonları
+                closeBtn.onclick = function() {
+                    detailsModal.style.display = 'none';
+                }
+                window.onclick = function(event) {
+                    if (event.target == detailsModal) {
+                        detailsModal.style.display = 'none';
+                    }
                 }
             },
             dateClick: function(info) {

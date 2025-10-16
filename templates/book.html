@@ -33,7 +33,7 @@
     </div>
 </div>
 
-
+{% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const dateInput = document.getElementById('date');
@@ -81,8 +81,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 timeSelect.innerHTML = '<option value="">Error loading times</option>';
             });
     });
+    const phoneElement = document.getElementById('phone');
+    if (phoneElement) {
+        const phoneMask = IMask(phoneElement, {
+            mask: '+{90} (000) 000 00 00',
+            // Bu özellik, maskenin her zaman görünür olmasını sağlar
+            lazy: false, 
+            // Bu özellik, kullanıcı silmeye çalıştığında bile maskenin sabit kısmını korur
+            prepare: function (str) {
+                // Kullanıcı +90'ı silmeye çalışırsa engelle
+                if (str.startsWith('+9') && !str.startsWith('+90')) {
+                    return '+90';
+                }
+                return str;
+            }
+        });
+    }
 });
 </script>
-
+{% endblock %}
 
 {% endblock %}

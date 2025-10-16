@@ -282,7 +282,11 @@ def get_events():
             'start': f"{appt.date}T{appt.time}:00",
             # YENİ: Olayın statüsünü CSS için iletiyoruz
             'extendedProps': {
-                'status': appt.status
+                'status': appt.status,
+                'phone': appt.phone,
+                'message': appt.message,
+                'date': appt.date,
+                'time': appt.time
             }
         })
     return jsonify(event_list)
