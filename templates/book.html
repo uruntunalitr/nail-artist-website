@@ -20,6 +20,7 @@
             <div class="form-group">
                 {{ form.time.label(class="form-label") }}
                 {{ form.time(class="form-control") }}
+                <small id="time-loader" style="display: none;">Finding available times...</small>
             </div>
             <div class="form-group">
                 {{ form.message.label(class="form-label") }}
@@ -31,4 +32,57 @@
         </form>
     </div>
 </div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('date');
+    const timeSelect = document.getElementById('time');
+    const timeLoader = document.getElementById('time-loader');
+
+    // Tarih alanı değiştiğinde bu fonksiyon çalışır
+    dateInput.addEventListener('change', function() {
+        const selectedDate = this.value;
+
+        // Seçim yapılmadıysa saatleri temizle
+        if (!selectedDate) {
+            timeSelect.innerHTML = '<option value="">Select a date first</option>';
+            return;
+        }
+
+        // Saatleri temizle ve yükleniyor mesajını göster
+        timeSelect.innerHTML = '';
+        timeLoader.style.display = 'block';
+        timeSelect.disabled = true;
+
+        // API'ye istek atarak müsait saatleri al
+        fetch(`/api/available_slots/${selectedDate}`)
+            .then(response => response.json())
+            .then(slots => {
+                timeLoader.style.display = 'none';
+                timeSelect.disabled = false;
+
+                if (slots.length > 0) {
+                    timeSelect.innerHTML = '<option value="">Select a time</option>';
+                    slots.forEach(slot => {
+                        const option = document.createElement('option');
+                        option.value = slot;
+                        option.textContent = slot;
+                        timeSelect.appendChild(option);
+                    });
+                } else {
+                    timeSelect.innerHTML = '<option value="">No available slots for this day</option>';
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching slots:', error);
+                timeLoader.style.display = 'none';
+                timeSelect.disabled = false;
+                timeSelect.innerHTML = '<option value="">Error loading times</option>';
+            });
+    });
+});
+</script>
+
+
 {% endblock %}

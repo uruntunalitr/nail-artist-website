@@ -13,29 +13,21 @@
 
     <div class="dashboard-grid">
         <div class="card">
-            <div class="card-header">
-                <h3>Upload New Photo</h3>
-            </div>
+            <div class="card-header"><h3>Upload New Photo</h3></div>
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
                     {{ photo_form.hidden_tag() }}
-                    <div class="form-group">
-                        {{ photo_form.photo(class="form-control") }}
-                    </div>
+                    <div class="form-group">{{ photo_form.photo(class="form-control") }}</div>
                     {{ photo_form.submit_photo(class="btn btn-primary") }}
                 </form>
             </div>
         </div>
         <div class="card">
-            <div class="card-header">
-                <h3>Upload New Video</h3>
-            </div>
+            <div class="card-header"><h3>Upload New Video</h3></div>
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
                     {{ video_form.hidden_tag() }}
-                    <div class="form-group">
-                        {{ video_form.video(class="form-control") }}
-                    </div>
+                    <div class="form-group">{{ video_form.video(class="form-control") }}</div>
                     {{ video_form.submit_video(class="btn btn-primary") }}
                 </form>
             </div>
@@ -45,20 +37,18 @@
     <hr class="section-divider">
 
     <div class="card">
-        <div class="card-header">
-            <h3>Appointment Calendar</h3>
-        </div>
+        <div class="card-header"><h3>Appointment Calendar</h3></div>
         <div class="card-body">
-            <div id="calendar"></div>
+            <div class="calendar-container">
+                <div id="calendar"></div>
+            </div>
         </div>
     </div>
 
     <hr class="section-divider">
 
     <div class="card">
-        <div class="card-header">
-            <h3>Manage Gallery</h3>
-        </div>
+        <div class="card-header"><h3>Manage Gallery</h3></div>
         <div class="card-body">            
             <h4>Photos</h4>
             <div class="manage-gallery-grid">
@@ -75,9 +65,7 @@
                 </div>
                 {% endfor %}
             </div>
-
             <hr>
-
             <h4>Videos</h4>
             <div class="manage-gallery-grid">
                 {% for video in videos %}
@@ -97,147 +85,24 @@
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Find all the move buttons
-    const moveButtons = document.querySelectorAll('.move-btn');
-
-    moveButtons.forEach(button => {
-        button.addEventListener('click', function(event) {
-            // 1. Prevent the link from causing a page refresh
-            event.preventDefault();
-
-            const url = this.href;
-            const direction = url.endsWith('up') ? 'up' : 'down';
-            const itemToMove = this.closest('.gallery-item-manage');
-
-            // 2. Send the request to the server in the background
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // 3. If successful, visually move the item on the page
-                        if (direction === 'up') {
-                            const previousItem = itemToMove.previousElementSibling;
-                            if (previousItem) {
-                                // Move the item before its previous sibling
-                                previousItem.parentNode.insertBefore(itemToMove, previousItem);
-                            }
-                        } else { // direction is 'down'
-                            const nextItem = itemToMove.nextElementSibling;
-                            if (nextItem) {
-                                // Move the item after its next sibling
-                                nextItem.parentNode.insertBefore(itemToMove, nextItem.nextSibling);
-                            }
-                        }
-                    } else {
-                        // Optional: Log an error if the move wasn't possible
-                        console.error('Could not move item:', data.error);
-                    }
-                })
-                .catch(error => console.error('Error:', error));
-        });
-    });
-});
-</script>
-
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Modal elementlerini seç
-    const modal = document.getElementById('eventModal');
-    const closeButton = document.querySelector('.close-button');
-    const eventForm = document.getElementById('eventForm');
-    const eventDateField = document.getElementById('eventDate');
-    const modalTitle = document.getElementById('modalTitle');
-
-    // Takvimi render et
-    var calendarEl = document.getElementById('calendar');
-    var calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        headerToolbar: {
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay'
-        },
-        events: '/api/events',
-        selectable: true, // Takvimde seçim yapmayı aktif et
-
-        // Bir güne tıklandığında bu fonksiyon çalışır
-        dateClick: function(info) {
-            eventForm.reset(); // Formu temizle
-            eventDateField.value = info.dateStr; // Tıklanan tarihi gizli alana ata
-            modalTitle.innerText = `Add Event for ${info.dateStr}`;
-            modal.style.display = 'block'; // Modalı göster
-        }
-    });
-    calendar.render();
-
-    // Modal kapatma butonları
-    closeButton.onclick = function() {
-        modal.style.display = 'none';
-    }
-    window.onclick = function(event) {
-        if (event.target == modal) {
-            modal.style.display = 'none';
-        }
-    }
-
-    // Form gönderildiğinde
-    eventForm.addEventListener('submit', function(e) {
-        e.preventDefault(); // Sayfanın yenilenmesini engelle
-
-        const formData = new FormData(eventForm);
-        const data = Object.fromEntries(formData.entries());
-
-        // Sunucuya yeni randevu verisini gönder
-        fetch('/api/add_event', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        })
-        .then(response => response.json())
-        .then(result => {
-            if(result.success) {
-                modal.style.display = 'none'; // Modalı gizle
-                calendar.refetchEvents(); // Takvimi yenile
-                alert('Event saved successfully!');
-            } else {
-                alert('Error: ' + result.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An unexpected error occurred.');
-        });
-    });
-});
-</script>
-
 <div id="eventModal" class="modal">
     <div class="modal-content">
         <span class="close-button">&times;</span>
         <h3 id="modalTitle">Add/Block Time</h3>
         <form id="eventForm">
             <input type="hidden" id="eventDate" name="date">
-
             <div class="form-group">
                 <label for="eventTime" class="form-label">Time</label>
                 <input type="time" id="eventTime" name="time" class="form-control" required>
             </div>
-
             <div class="form-group">
                 <label for="eventName" class="form-label">Client Name</label>
                 <input type="text" id="eventName" name="name" class="form-control" placeholder="Leave blank if blocking time">
             </div>
-
             <div class="form-group">
                 <label for="eventPhone" class="form-label">Phone</label>
                 <input type="text" id="eventPhone" name="phone" class="form-control">
             </div>
-
             <div class="form-group">
                 <label for="eventStatus" class="form-label">Action</label>
                 <select id="eventStatus" name="status" class="form-control">
@@ -245,10 +110,146 @@ document.addEventListener('DOMContentLoaded', function() {
                     <option value="blocked">Block This Time</option>
                 </select>
             </div>
-
             <button type="submit" class="btn btn-primary">Save</button>
         </form>
     </div>
 </div>
 {% endblock %}
 
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- GALERİ TAŞIMA BUTONLARI ---
+    const moveButtons = document.querySelectorAll('.move-btn');
+    moveButtons.forEach(button => {
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            const url = this.href;
+            const direction = url.endsWith('up') ? 'up' : 'down';
+            const itemToMove = this.closest('.gallery-item-manage');
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (direction === 'up') {
+                            const previousItem = itemToMove.previousElementSibling;
+                            if (previousItem) {
+                                previousItem.parentNode.insertBefore(itemToMove, previousItem);
+                            }
+                        } else {
+                            const nextItem = itemToMove.nextElementSibling;
+                            if (nextItem) {
+                                nextItem.parentNode.insertBefore(itemToMove, nextItem.nextSibling);
+                            }
+                        }
+                    } else {
+                        console.error('Could not move item:', data.error);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        });
+    });
+
+    // --- TAKVİM VE MODAL İÇİN GEREKLİ ELEMENTLER ---
+    const modal = document.getElementById('eventModal');
+    if (modal) { // Sayfada modal varsa devam et (güvenlik kontrolü)
+        const closeButton = document.querySelector('.close-button');
+        const eventForm = document.getElementById('eventForm');
+        const eventDateField = document.getElementById('eventDate');
+        const eventTimeField = document.getElementById('eventTime');
+        const eventNameField = document.getElementById('eventName').parentElement;
+        const eventPhoneField = document.getElementById('eventPhone').parentElement;
+        const eventStatusSelect = document.getElementById('eventStatus');
+        const modalTitle = document.getElementById('modalTitle');
+        var calendarEl = document.getElementById('calendar');
+
+        // --- FULLCALENDAR'I BAŞLATMA ---
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'timeGridWeek',
+            slotMinTime: '09:00:00',
+            slotMaxTime: '19:00:00',
+            allDaySlot: false,
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            events: '/api/events',
+            selectable: true,
+            editable: true,
+            eventClassNames: function(arg) {
+                if (arg.event.extendedProps.status === 'blocked') return ['fc-event-blocked'];
+                return ['fc-event-booked'];
+            },
+            eventDrop: function(info) {
+                if (!confirm("Are you sure?")) { info.revert(); return; }
+                fetch(`/api/update_event/${info.event.id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ start: info.event.start.toISOString() })
+                }).then(res => res.json()).then(result => {
+                    if (!result.success) { alert('Error: ' + result.error); info.revert(); }
+                }).catch(() => { alert('Error'); info.revert(); });
+            },
+            eventClick: function(info) {
+                if (confirm(`Delete '${info.event.title}'?`)) {
+                    fetch(`/api/delete_event/${info.event.id}`, { method: 'POST' })
+                    .then(res => res.json()).then(result => {
+                        if (result.success) info.event.remove();
+                        else alert('Error: ' + result.error);
+                    }).catch(() => alert('Error'));
+                }
+            },
+            dateClick: function(info) {
+                eventForm.reset();
+                const clickedDate = info.date;
+                
+                // Tarihi, saat diliminden etkilenmeyecek şekilde manuel olarak formatla
+                const year = clickedDate.getFullYear();
+                const month = String(clickedDate.getMonth() + 1).padStart(2, '0'); 
+                const day = String(clickedDate.getDate()).padStart(2, '0');
+                const localDateString = `${year}-${month}-${day}`;
+                
+                // Tıklanan tarih ve saati formdaki alanlara otomatik doldur
+                eventDateField.value = localDateString; 
+                eventTimeField.value = clickedDate.toTimeString().slice(0, 5);
+                
+                // Formu varsayılan haline getir (isim ve telefon görünsün)
+                eventNameField.style.display = 'block';
+                eventPhoneField.style.display = 'block';
+                eventStatusSelect.value = 'booked';
+                
+                modalTitle.innerText = `Add Event for ${eventDateField.value}`;
+                modal.style.display = 'block'; 
+            }
+        });
+        calendar.render();
+
+
+        eventStatusSelect.addEventListener('change', function() {
+            const isBlocked = this.value === 'blocked';
+            eventNameField.style.display = isBlocked ? 'none' : 'block';
+            eventPhoneField.style.display = isBlocked ? 'none' : 'block';
+        });
+        closeButton.onclick = () => modal.style.display = 'none';
+        window.onclick = (event) => { if (event.target == modal) modal.style.display = 'none'; };
+        eventForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(eventForm).entries());
+            fetch('/api/add_event', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            }).then(res => res.json()).then(result => {
+                if (result.success) {
+                    modal.style.display = 'none';
+                    calendar.refetchEvents();
+                } else { alert('Error: ' + result.error); }
+            }).catch(() => alert('Error'));
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -468,3 +468,38 @@ th {
   text-decoration: none;
   cursor: pointer;
 }
+
+/* --- Profesyonel Takvim Stilleri --- */
+
+/* Takvim ve kontrol elemanlarını saran konteyner */
+.calendar-container {
+    position: relative;
+}
+
+
+/* Grid çizgilerini daha belirgin hale getir */
+.fc-timegrid-slot {
+    border-bottom: 1px solid #f0f0f0;
+}
+
+/* Müşteri randevusu stilini tanımla */
+.fc-event.fc-event-booked {
+    background-color: var(--primary-color) !important;
+    border-color: #d8b1b9 !important;
+    color: white !important;
+    padding: 2px;
+}
+
+/* Admin tarafından bloklanan zaman dilimi stili */
+.fc-event.fc-event-blocked {
+    background: repeating-linear-gradient(
+      45deg,
+      #a9a9a9,
+      #a9a9a9 10px,
+      #808080 10px,
+      #808080 20px
+    ) !important;
+    border: 1px solid #555 !important;
+    color: white !important;
+    text-shadow: 1px 1px 2px black;
+}

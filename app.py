@@ -3,6 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 import os
 from forms import AppointmentForm, PhotoUploadForm, VideoUploadForm, LoginForm
+from datetime import datetime, timedelta
+import pytz
 
 app = Flask(__name__)
 # IMPORTANT: Change this secret key!
@@ -10,6 +12,10 @@ app.config['SECRET_KEY'] = 'a_very_secret_key_change_it'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 db = SQLAlchemy(app)
+
+WORKING_HOURS_START = 9  # Sabah 9
+WORKING_HOURS_END = 18   # Akşam 6 (18:00'e kadar çalışılıyor, 18:00 randevu değil)
+APPOINTMENT_DURATION_MINUTES = 60 # Her randevu 60 dakika sürer
 
 # --- Database Models ---
 
@@ -46,19 +52,51 @@ def index():
 @app.route('/book', methods=['GET', 'POST'])
 def book():
     form = AppointmentForm()
+
+    # Eğer form POST metodu ile gönderildiyse
+    if request.method == 'POST':
+        # Formdan gelen tarihi al
+        selected_date_str = request.form.get('date')
+        if selected_date_str:
+            # O tarihe ait müsait saatleri tekrar hesapla
+            # get_available_slots fonksiyonunun mantığını burada tekrar kullanıyoruz
+            selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
+            booked_appointments = Appointment.query.filter_by(date=selected_date_str).all()
+            booked_times = [datetime.strptime(appt.time, '%H:%M').time() for appt in booked_appointments]
+
+            turkey_tz = pytz.timezone('Europe/Istanbul')
+            now_in_turkey = datetime.now(turkey_tz)
+
+            possible_slots = []
+            start_time = datetime.strptime(f"{WORKING_HOURS_START}:00", '%H:%M')
+            end_time = datetime.strptime(f"{WORKING_HOURS_END}:00", '%H:%M')
+            current_time_slot = start_time
+            while current_time_slot < end_time:
+                slot_time = current_time_slot.time()
+                slot_datetime = turkey_tz.localize(datetime.combine(selected_date, slot_time))
+                if slot_time not in booked_times and slot_datetime > now_in_turkey:
+                    possible_slots.append(slot_time.strftime('%H:%M'))
+                current_time_slot += timedelta(minutes=APPOINTMENT_DURATION_MINUTES)
+
+            # 'time' alanının seçeneklerini bu müsait saatlerle doldur
+            form.time.choices = [(slot, slot) for slot in possible_slots]
+
+    # Şimdi formu doğrula
     if form.validate_on_submit():
+        # Doğrulama başarılıysa randevuyu kaydet
         new_appointment = Appointment(
             name=form.name.data,
             phone=form.phone.data,
             date=form.date.data.strftime('%Y-%m-%d'),
-            time=form.time.data.strftime('%H:%M'),
+            time=form.time.data, # .strftime('%H:%M') artık gerekmiyor
             message=form.message.data,
-            status='booked'  # <-- BU SATIRI EKLEYİN
+            status='booked'
         )
         db.session.add(new_appointment)
         db.session.commit()
         flash('Your appointment has been booked successfully!', 'success')
         return redirect(url_for('index'))
+
     return render_template('book.html', title='Book Appointment', form=form)
 
 
@@ -228,20 +266,24 @@ def delete_video(video_id):
     flash('Video has been deleted.', 'success')
     return redirect(url_for('admin'))
 
+# app.py içindeki get_events() fonksiyonunu güncelleyin
+
 @app.route('/api/events')
 def get_events():
     if 'admin_logged_in' not in session:
-        return jsonify([]) # Giriş yapılmamışsa boş liste döndür
+        return jsonify([])
 
     appointments = Appointment.query.all()
     event_list = []
     for appt in appointments:
         event_list.append({
             'id': appt.id,
-            'title': f"{appt.name} ({appt.time})",
+            'title': appt.name,
             'start': f"{appt.date}T{appt.time}:00",
-            'backgroundColor': '#EACCD1' if appt.status == 'booked' else '#808080', # Müşteri randevusu pembe, bloklu gri
-            'borderColor': '#EACCD1' if appt.status == 'booked' else '#808080'
+            # YENİ: Olayın statüsünü CSS için iletiyoruz
+            'extendedProps': {
+                'status': appt.status
+            }
         })
     return jsonify(event_list)
 
@@ -280,6 +322,87 @@ def add_event():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+    
+
+# app.py içinde
+
+@app.route('/api/update_event/<int:event_id>', methods=['POST'])
+def update_event(event_id):
+    if 'admin_logged_in' not in session:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    appointment = Appointment.query.get_or_404(event_id)
+    data = request.get_json()
+
+    # FullCalendar'dan gelen yeni başlangıç tarihini ve saatini al
+    new_start = data.get('start')
+    if not new_start:
+        return jsonify({'success': False, 'error': 'New start date is required'}), 400
+
+    try:
+        # Gelen tarihi (örn: '2025-10-20T14:00:00') ayır
+        dt_object = datetime.fromisoformat(new_start)
+        appointment.date = dt_object.strftime('%Y-%m-%d')
+        appointment.time = dt_object.strftime('%H:%M')
+
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/delete_event/<int:event_id>', methods=['POST'])
+def delete_event(event_id):
+    if 'admin_logged_in' not in session:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    appointment = Appointment.query.get_or_404(event_id)
+
+    try:
+        db.session.delete(appointment)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/available_slots/<string:date>')
+def get_available_slots(date):
+    try:
+        selected_date = datetime.strptime(date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+
+    try:
+        booked_appointments = Appointment.query.filter_by(date=date).all()
+        booked_times = [datetime.strptime(appt.time, '%H:%M').time() for appt in booked_appointments]
+    except Exception as e:
+        print(f"Database error: {e}")
+        return jsonify({'error': 'Could not query database'}), 500
+
+    available_slots = []
+    start_time = datetime.strptime(f"{WORKING_HOURS_START}:00", '%H:%M')
+    end_time = datetime.strptime(f"{WORKING_HOURS_END}:00", '%H:%M')
+    current_time_slot = start_time
+
+    # Türkiye saat dilimini ayarla
+    turkey_tz = pytz.timezone('Europe/Istanbul')
+    now_in_turkey = datetime.now(turkey_tz)
+
+    while current_time_slot < end_time:
+        slot_time = current_time_slot.time()
+
+        # Seçilen tarih ve saati birleştirip saat dilimi bilgisi ekle
+        slot_datetime = turkey_tz.localize(datetime.combine(selected_date, slot_time))
+
+        # Eğer o saat dilimi dolu değilse VE geçmişte bir tarih/saat değilse listeye ekle
+        if slot_time not in booked_times and slot_datetime > now_in_turkey:
+            available_slots.append(slot_time.strftime('%H:%M'))
+
+        current_time_slot += timedelta(minutes=APPOINTMENT_DURATION_MINUTES)
+
+    return jsonify(available_slots)
 
 if __name__ == '__main__':
     with app.app_context():
