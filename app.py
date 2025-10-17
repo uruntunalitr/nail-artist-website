@@ -495,6 +495,8 @@ def add_event():
 
 # app.py içinde
 
+
+
 @app.route('/api/update_event/<int:event_id>', methods=['POST'])
 def update_event(event_id):
     if 'admin_logged_in' not in session:
@@ -503,7 +505,6 @@ def update_event(event_id):
     appointment = Appointment.query.get_or_404(event_id)
     data = request.get_json()
 
-    # FullCalendar'dan gelen yeni başlangıç tarihini ve saatini al
     new_start = data.get('start')
     if not new_start:
         return jsonify({'success': False, 'error': 'New start date is required'}), 400
@@ -511,8 +512,37 @@ def update_event(event_id):
     try:
         # Gelen tarihi (örn: '2025-10-20T14:00:00') ayır
         dt_object = datetime.fromisoformat(new_start)
-        appointment.date = dt_object.strftime('%Y-%m-%d')
-        appointment.time = dt_object.strftime('%H:%M')
+        new_date_str = dt_object.strftime('%Y-%m-%d')
+        new_time_str = dt_object.strftime('%H:%M')
+
+        # --- YENİ E-POSTA BİLDİRİM KODU ---
+        # Sadece 'onaylanmış' randevular için ve e-posta adresi varsa mail at
+        if appointment.status == 'confirmed' and appointment.email:
+            try:
+                msg = Message('Your Appointment Has Been Rescheduled',
+                              sender=app.config['MAIL_USERNAME'],
+                              recipients=[appointment.email])
+                msg.body = f"""
+                Hi {appointment.name},
+
+                Please note that your appointment has been rescheduled.
+
+                New Date: {new_date_str}
+                New Time: {new_time_str}
+
+                If this new time does not work for you, please contact us.
+
+                - Funda Turalı Nail Artist
+                """
+                mail.send(msg)
+            except Exception as e:
+                print(f"Email sending failed (likely Render block): {e}")
+                # E-posta gitmese bile randevuyu güncellemeye devam et
+        # --- E-POSTA KODU SONU ---
+
+        # Randevu tarihini ve saatini güncelle
+        appointment.date = new_date_str
+        appointment.time = new_time_str
 
         db.session.commit()
         return jsonify({'success': True})
