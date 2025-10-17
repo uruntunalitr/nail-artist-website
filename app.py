@@ -1,10 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_mail import Mail, Message
 from werkzeug.utils import secure_filename
 import os
-from forms import AppointmentForm, PhotoUploadForm, VideoUploadForm, LoginForm
+from forms import AppointmentForm, PhotoUploadForm, VideoUploadForm, LoginForm, AddServiceForm
 from datetime import datetime, timedelta
-import pytz
+import pytz,math
 
 app = Flask(__name__)
 # IMPORTANT: Change this secret key!
@@ -17,18 +18,39 @@ WORKING_HOURS_START = 9  # Sabah 9
 WORKING_HOURS_END = 18   # Akşam 6 (18:00'e kadar çalışılıyor, 18:00 randevu değil)
 APPOINTMENT_DURATION_MINUTES = 60 # Her randevu 60 dakika sürer
 
+app.config['MAIL_SERVER'] = 'smtp.googlemail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'uruntunali@gmail.com'
+app.config['MAIL_PASSWORD'] = 'gwyx wupi hmxt ubtb'
+mail = Mail(app)
+
 # --- Database Models ---
 
 
 class Appointment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), nullable=True)
     phone = db.Column(db.String(20), nullable=False)
     date = db.Column(db.String(20), nullable=False)
     time = db.Column(db.String(10), nullable=False)
     message = db.Column(db.Text, nullable=True)
-    status = db.Column(db.String(20), nullable=False, default='booked') # 'booked' veya 'blocked'
 
+    # 'status' güncellendi: 'pending', 'confirmed', 'blocked'
+    status = db.Column(db.String(20), nullable=False, default='pending') 
+
+    # 'duration' kaldırıldı, yerine hizmete bağlantı eklendi
+    service_id = db.Column(db.Integer, db.ForeignKey('service.id'), nullable=True) 
+
+    # Hizmet bilgisine kolay erişim için
+    service = db.relationship('Service', backref=db.backref('appointments', lazy=True))
+
+class Service(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    duration = db.Column(db.Integer, nullable=False, default=60) # Süre (dakika)
+    position = db.Column(db.Integer, nullable=False, default=100)
 
 class Photo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -49,56 +71,136 @@ def index():
     return render_template('index.html', title='Home')
 
 
+# app.py içindeki book() fonksiyonunu bulun
+# app.py içindeki book() fonksiyonunu bununla değiştirin
+
 @app.route('/book', methods=['GET', 'POST'])
 def book():
     form = AppointmentForm()
+    
+    # Hizmet listesini her zaman doldur (GET ve POST için)
+    form.service.choices = [
+        (s.id, f"{s.name} ({s.duration} min)") 
+        for s in Service.query.order_by(Service.position).all()
+    ]
 
-    # Eğer form POST metodu ile gönderildiyse
+    # --- YENİ EKLENEN BÖLÜM BAŞLANGICI ---
+    # Eğer form gönderildiyse (POST), doğrulama yapmadan önce o tarihe ait
+    # müsait saatleri hesaplayıp formun time.choices listesini doldurmamız gerekir.
     if request.method == 'POST':
-        # Formdan gelen tarihi al
-        selected_date_str = request.form.get('date')
-        if selected_date_str:
-            # O tarihe ait müsait saatleri tekrar hesapla
-            # get_available_slots fonksiyonunun mantığını burada tekrar kullanıyoruz
-            selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d').date()
-            booked_appointments = Appointment.query.filter_by(date=selected_date_str).all()
-            booked_times = [datetime.strptime(appt.time, '%H:%M').time() for appt in booked_appointments]
+        try:
+            service_id = int(request.form.get('service'))
+            date_str = request.form.get('date')
+            
+            if service_id and date_str:
+                selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                service = Service.query.get(service_id)
+                new_appt_duration = service.duration
 
-            turkey_tz = pytz.timezone('Europe/Istanbul')
-            now_in_turkey = datetime.now(turkey_tz)
+                # get_available_slots fonksiyonundaki mantığın aynısını burada çalıştır
+                appointments_today = Appointment.query.filter_by(date=date_str).all()
+                blocked_slots = set()
+                for appt in appointments_today:
+                    start_time = datetime.strptime(appt.time, '%H:%M')
+                    duration = appt.service.duration if appt.service else 60
+                    slots_needed = math.ceil(duration / APPOINTMENT_DURATION_MINUTES)
+                    for i in range(slots_needed):
+                        slot_time = (start_time + timedelta(minutes=i * APPOINTMENT_DURATION_MINUTES)).time()
+                        blocked_slots.add(slot_time)
 
-            possible_slots = []
-            start_time = datetime.strptime(f"{WORKING_HOURS_START}:00", '%H:%M')
-            end_time = datetime.strptime(f"{WORKING_HOURS_END}:00", '%H:%M')
-            current_time_slot = start_time
-            while current_time_slot < end_time:
-                slot_time = current_time_slot.time()
-                slot_datetime = turkey_tz.localize(datetime.combine(selected_date, slot_time))
-                if slot_time not in booked_times and slot_datetime > now_in_turkey:
-                    possible_slots.append(slot_time.strftime('%H:%M'))
-                current_time_slot += timedelta(minutes=APPOINTMENT_DURATION_MINUTES)
+                available_slots = []
+                turkey_tz = pytz.timezone('Europe/Istanbul')
+                now_in_turkey = datetime.now(turkey_tz)
+                start_of_day = datetime.strptime(f"{WORKING_HOURS_START}:00", '%H:%M')
+                end_of_day = datetime.strptime(f"{WORKING_HOURS_END}:00", '%H:%M')
+                current_slot = start_of_day
 
-            # 'time' alanının seçeneklerini bu müsait saatlerle doldur
-            form.time.choices = [(slot, slot) for slot in possible_slots]
+                while current_slot < end_of_day:
+                    slot_time = current_slot.time()
+                    slot_datetime = turkey_tz.localize(datetime.combine(selected_date, slot_time))
+                    if slot_time not in blocked_slots and slot_datetime > now_in_turkey:
+                        is_slot_available = True
+                        slots_needed_for_new = math.ceil(new_appt_duration / APPOINTMENT_DURATION_MINUTES)
+                        for i in range(slots_needed_for_new):
+                            time_to_check = (current_slot + timedelta(minutes=i * APPOINTMENT_DURATION_MINUTES)).time()
+                            end_time_to_check = (current_slot + timedelta(minutes=i * APPOINTMENT_DURATION_MINUTES))
+                            if time_to_check in blocked_slots or end_time_to_check >= end_of_day:
+                                is_slot_available = False
+                                break
+                        if is_slot_available:
+                            available_slots.append(slot_time.strftime('%H:%M'))
+                    current_slot += timedelta(minutes=APPOINTMENT_DURATION_MINUTES)
+                
+                # Formun saat seçeneklerini bu müsait saatlerle doldur
+                form.time.choices = [(slot, slot) for slot in available_slots]
+        except Exception as e:
+            print(f"Error populating time choices on POST: {e}")
+            form.time.choices = []
+    # --- YENİ EKLENEN BÖLÜM SONU ---
 
-    # Şimdi formu doğrula
+
     if form.validate_on_submit():
-        # Doğrulama başarılıysa randevuyu kaydet
+        # Buradaki GÜVENLİK KONTROLÜ (Flash mesajı veren) zaten doğru çalışıyor
+        # ... (mevcut güvenlik kontrolü ve randevu kaydetme kodunuz) ...
+        # ...
+        date_str = form.date.data.strftime('%Y-%m-%d')
+        time_str = form.time.data
+        selected_date = form.date.data
+        
+        # Seçilen hizmetin süresini al
+        service = Service.query.get(form.service.data)
+        if not service:
+            flash('Selected service not found.', 'danger')
+            return render_template('book.html', title='Book Appointment', form=form)
+        new_appt_duration = service.duration
+
+        # --- GÜVENLİK KONTROLÜ (DÜZELTİLMİŞ HALİ) ---
+        appointments_today = Appointment.query.filter_by(date=date_str).all()
+        blocked_slots = set()
+        for appt in appointments_today:
+            start_time = datetime.strptime(appt.time, '%H:%M')
+            duration = appt.service.duration if appt.service else 60
+            
+            slots_needed = math.ceil(duration / APPOINTMENT_DURATION_MINUTES)
+            
+            for i in range(slots_needed):
+                slot_time = (start_time + timedelta(minutes=i * APPOINTMENT_DURATION_MINUTES)).time()
+                blocked_slots.add(slot_time)
+        
+        selected_time_obj = datetime.strptime(time_str, '%H:%M')
+        slots_needed_for_new = math.ceil(new_appt_duration / APPOINTMENT_DURATION_MINUTES)
+        
+        is_safe_to_book = True
+        for i in range(slots_needed_for_new):
+            time_to_check = (selected_time_obj + timedelta(minutes=i * APPOINTMENT_DURATION_MINUTES)).time()
+            if time_to_check in blocked_slots:
+                is_safe_to_book = False
+                break
+        
+        if not is_safe_to_book:
+            flash('The selected time is no longer available or conflicts with another appointment. Please choose another time.', 'danger')
+            return render_template('book.html', title='Book Appointment', form=form)
+        # --- GÜVENLİK KONTROLÜ SONU ---
+
+        
+        # Randevuyu 'pending' olarak kaydet
         new_appointment = Appointment(
             name=form.name.data,
+            email=form.email.data,
             phone=form.phone.data,
-            date=form.date.data.strftime('%Y-%m-%d'),
-            time=form.time.data, # .strftime('%H:%M') artık gerekmiyor
+            date=date_str,
+            time=time_str,
+            service_id=form.service.data,
             message=form.message.data,
-            status='booked'
+            status='pending'
         )
         db.session.add(new_appointment)
         db.session.commit()
-        flash('Your appointment has been booked successfully!', 'success')
+            
+        flash('Your appointment request has been sent! You will receive an email upon confirmation.', 'success')
         return redirect(url_for('index'))
-
+        
     return render_template('book.html', title='Book Appointment', form=form)
-
 
 ADMIN_PASSWORD = "admin123"
 
@@ -136,6 +238,18 @@ def admin():
 
     photo_form = PhotoUploadForm()
     video_form = VideoUploadForm()
+    service_form = AddServiceForm() 
+
+
+    if service_form.submit_service.data and service_form.validate_on_submit():
+        new_service = Service(
+            name=service_form.name.data,
+            duration=service_form.duration.data
+        )
+        db.session.add(new_service)
+        db.session.commit()
+        flash('Service added successfully!', 'success')
+        return redirect(url_for('admin'))
 
     # V-- THIS IS THE CORRECTED LOGIC --V
 
@@ -181,11 +295,21 @@ def admin():
     appointments = Appointment.query.order_by(Appointment.date.desc()).all()
     photos = Photo.query.order_by(Photo.position).all()
     videos = Video.query.order_by(Video.position).all()
+    services = Service.query.order_by(Service.position).all()
 
     return render_template('admin.html', title='Admin Panel',
-                           appointments=appointments, photos=photos, videos=videos,
-                           photo_form=photo_form, video_form=video_form)
+                           appointments=appointments, photos=photos, videos=videos, services=services, 
+                           photo_form=photo_form, video_form=video_form, service_form=service_form)
 
+@app.route('/delete_service/<int:service_id>', methods=['POST'])
+def delete_service(service_id):
+    if 'admin_logged_in' not in session:
+        return redirect(url_for('login'))
+    service = Service.query.get_or_404(service_id)
+    db.session.delete(service)
+    db.session.commit()
+    flash('Service has been deleted.', 'success')
+    return redirect(url_for('admin'))
 
 @app.route('/move/<item_type>/<int:item_id>/<direction>')
 def move_item(item_type, item_id, direction):
@@ -276,20 +400,59 @@ def get_events():
     appointments = Appointment.query.all()
     event_list = []
     for appt in appointments:
+        start_datetime = datetime.strptime(f"{appt.date}T{appt.time}:00", "%Y-%m-%dT%H:%M:%S")
+        # Hizmetin süresini al, eğer hizmet silinmişse 60dk varsay
+        duration = appt.service.duration if appt.service else 60
+        end_datetime = start_datetime + timedelta(minutes=duration)
+
         event_list.append({
             'id': appt.id,
             'title': appt.name,
-            'start': f"{appt.date}T{appt.time}:00",
-            # YENİ: Olayın statüsünü CSS için iletiyoruz
+            'start': start_datetime.isoformat(),
+            'end': end_datetime.isoformat(),
             'extendedProps': {
                 'status': appt.status,
                 'phone': appt.phone,
                 'message': appt.message,
                 'date': appt.date,
-                'time': appt.time
+                'time': appt.time,
+                'email': appt.email, # E-postayı da gönderelim
+                'service_name': appt.service.name if appt.service else 'N/A'
             }
         })
     return jsonify(event_list)
+
+@app.route('/api/approve_appointment/<int:appointment_id>', methods=['POST'])
+def approve_appointment(appointment_id):
+    if 'admin_logged_in' not in session:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    appointment = Appointment.query.get_or_404(appointment_id)
+
+    try:
+        # Randevunun statüsünü 'confirmed' yap
+        appointment.status = 'confirmed'
+        db.session.commit()
+
+        # Müşteriye onay e-postası gönder
+        msg = Message('Your Appointment is Confirmed!',
+                      sender=app.config['MAIL_USERNAME'],
+                      recipients=[appointment.email])
+        msg.body = f"""
+        Hi {appointment.name},
+
+        Your appointment for {appointment.service.name} on {appointment.date} at {appointment.time} has been confirmed!
+
+        See you soon!
+        - Funda Turalı Nail Artist
+        """
+        mail.send(msg)
+
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/api/add_event', methods=['POST'])
 def add_event():
@@ -318,7 +481,9 @@ def add_event():
             date=data['date'],
             time=data['time'],
             message='', # Admin eklediği için mesaj boş olabilir
-            status=data['status']
+            status=data['status'],
+            email=data.get('email', None), # BU SATIRI EKLEYİN
+            service_id=None if data['status'] == 'blocked' else data.get('service_id', None)
         )
         db.session.add(new_appointment)
         db.session.commit()
@@ -371,40 +536,66 @@ def delete_event(event_id):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/available_slots/<string:date>')
-def get_available_slots(date):
+
+# app.py içindeki get_available_slots fonksiyonunu bununla değiştirin
+
+@app.route('/api/available_slots/<int:service_id>/<string:date>')
+def get_available_slots(service_id, date):
     try:
         selected_date = datetime.strptime(date, '%Y-%m-%d').date()
     except ValueError:
         return jsonify({'error': 'Invalid date format'}), 400
+    
+    service = Service.query.get(service_id)
+    if not service:
+        return jsonify({'error': 'Service not found'}), 404
+    new_appt_duration = service.duration
+    
+    # Adım 1: O günkü tüm dolu aralıkları (slot) hesapla
+    appointments_today = Appointment.query.filter_by(date=date).all()
+    blocked_slots = set()
+    for appt in appointments_today:
+        start_time = datetime.strptime(appt.time, '%H:%M')
+        duration = appt.service.duration if appt.service else 60
+        
+        # DÜZELTME: Gerekli slot sayısını 'math.ceil' ile hesapla
+        slots_needed = math.ceil(duration / APPOINTMENT_DURATION_MINUTES)
+        
+        for i in range(slots_needed):
+            slot_time = (start_time + timedelta(minutes=i * APPOINTMENT_DURATION_MINUTES)).time()
+            blocked_slots.add(slot_time)
 
-    try:
-        booked_appointments = Appointment.query.filter_by(date=date).all()
-        booked_times = [datetime.strptime(appt.time, '%H:%M').time() for appt in booked_appointments]
-    except Exception as e:
-        print(f"Database error: {e}")
-        return jsonify({'error': 'Could not query database'}), 500
-
+    # Adım 2: Müsait saatleri bul
     available_slots = []
-    start_time = datetime.strptime(f"{WORKING_HOURS_START}:00", '%H:%M')
-    end_time = datetime.strptime(f"{WORKING_HOURS_END}:00", '%H:%M')
-    current_time_slot = start_time
-
-    # Türkiye saat dilimini ayarla
     turkey_tz = pytz.timezone('Europe/Istanbul')
     now_in_turkey = datetime.now(turkey_tz)
-
-    while current_time_slot < end_time:
-        slot_time = current_time_slot.time()
-
-        # Seçilen tarih ve saati birleştirip saat dilimi bilgisi ekle
+    
+    start_of_day = datetime.strptime(f"{WORKING_HOURS_START}:00", '%H:%M')
+    end_of_day = datetime.strptime(f"{WORKING_HOURS_END}:00", '%H:%M')
+    
+    current_slot = start_of_day
+    while current_slot < end_of_day:
+        slot_time = current_slot.time()
         slot_datetime = turkey_tz.localize(datetime.combine(selected_date, slot_time))
 
-        # Eğer o saat dilimi dolu değilse VE geçmişte bir tarih/saat değilse listeye ekle
-        if slot_time not in booked_times and slot_datetime > now_in_turkey:
-            available_slots.append(slot_time.strftime('%H:%M'))
-
-        current_time_slot += timedelta(minutes=APPOINTMENT_DURATION_MINUTES)
+        if slot_time not in blocked_slots and slot_datetime > now_in_turkey:
+            # Randevunun sığıp sığmadığını kontrol et
+            is_slot_available = True
+            # DÜZELTME: Gerekli slot sayısını 'math.ceil' ile hesapla
+            slots_needed_for_new = math.ceil(new_appt_duration / APPOINTMENT_DURATION_MINUTES)
+            
+            for i in range(slots_needed_for_new):
+                time_to_check = (current_slot + timedelta(minutes=i * APPOINTMENT_DURATION_MINUTES)).time()
+                end_time_to_check = (current_slot + timedelta(minutes=i * APPOINTMENT_DURATION_MINUTES))
+                
+                if time_to_check in blocked_slots or end_time_to_check >= end_of_day:
+                    is_slot_available = False
+                    break
+            
+            if is_slot_available:
+                available_slots.append(slot_time.strftime('%H:%M'))
+        
+        current_slot += timedelta(minutes=APPOINTMENT_DURATION_MINUTES)
 
     return jsonify(available_slots)
 

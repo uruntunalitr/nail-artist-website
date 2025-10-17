@@ -83,6 +83,40 @@
             </div>
         </div>
     </div>
+    <hr class="section-divider">
+
+    <div class="card">
+        <div class="card-header"><h3>Manage Services</h3></div>
+        <div class="card-body">
+            <h4>Current Services</h4>
+            <div class="table-responsive">
+                <table>
+                    <thead><tr><th>Name</th><th>Duration</th><th>Action</th></tr></thead>
+                    <tbody>
+                        {% for s in services %}
+                        <tr>
+                            <td>{{ s.name }}</td>
+                            <td>{{ s.duration }} min</td>
+                            <td>
+                                <form action="{{ url_for('delete_service', service_id=s.id) }}" method="POST" onsubmit="return confirm('Delete this service?');">
+                                    <button type="submit" class="btn btn-danger btn-small">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <hr>
+            <h4>Add New Service</h4>
+            <form method="POST" class="form-inline">
+                {{ service_form.hidden_tag() }}
+                <div class="form-group">{{ service_form.name(class="form-control", placeholder="Service Name") }}</div>
+                <div class="form-group">{{ service_form.duration(class="form-control", placeholder="Duration (min)") }}</div>
+                {{ service_form.submit_service(class="btn btn-primary") }}
+            </form>
+        </div>
+    </div>
 </div>
 
 <div id="eventModal" class="modal">
@@ -105,10 +139,9 @@
             </div>
             <div class="form-group">
                 <label for="eventStatus" class="form-label">Action</label>
-                <select id="eventStatus" name="status" class="form-control">
-                    <option value="booked">Book Appointment</option>
-                    <option value="blocked">Block This Time</option>
-                </select>
+            <select id="eventStatus" name="status" class="form-control">
+                <option value="confirmed">Book Appointment</option> <option value="blocked">Block This Time</option>
+            </select>
             </div>
             <button type="submit" class="btn btn-primary">Save</button>
         </form>
@@ -197,8 +230,15 @@ document.addEventListener('DOMContentLoaded', function() {
             selectable: true,
             editable: true,
             eventClassNames: function(arg) {
-                if (arg.event.extendedProps.status === 'blocked') return ['fc-event-blocked'];
-                return ['fc-event-booked'];
+                const status = arg.event.extendedProps.status;
+                if (status === 'blocked') {
+                    return ['fc-event-blocked']; // Gri
+                } else if (status === 'confirmed') {
+                    return ['fc-event-confirmed']; // Yeşil
+                } else if (status === 'pending') {
+                    return ['fc-event-pending']; // Turuncu
+                }
+                return []; // Varsayılan
             },
             eventDrop: function(info) {
                 if (!confirm("Are you sure you want to move this appointment?")) {
@@ -238,62 +278,72 @@ document.addEventListener('DOMContentLoaded', function() {
                     info.revert();
                 });
             },
+            // 2. Mevcut bir randevuya tıklandığında çalışır (Detayları Göster/Onayla)
             eventClick: function(info) {
-                // "Blocked" zamanlara tıklanırsa bir şey yapma
-                if (info.event.extendedProps.status === 'blocked') {
-                    if (confirm(`'${info.event.title}' zaman bloğunu kaldırmak istiyor musunuz?`)) {
-                        // Silme mantığı burada da çalışabilir
-                        fetch(`/api/delete_event/${info.event.id}`, { method: 'POST' })
-                            .then(res => res.json()).then(result => {
-                                if (result.success) info.event.remove();
-                                else alert('Error: ' + result.error);
-                            }).catch(() => alert('Error'));
-                    }
-                    return;
-                }
-
-                // --- Yeni Modal Elementlerini Seç ---
+                const props = info.event.extendedProps;
                 const detailsModal = document.getElementById('detailsModal');
                 const closeBtn = detailsModal.querySelector('.close-button');
                 const deleteBtn = document.getElementById('deleteEventBtn');
+                const modalFooter = detailsModal.querySelector('.modal-footer');
 
                 // --- Modal'ı Doldur ---
                 document.getElementById('detailsTitle').innerText = `Details for ${info.event.title}`;
                 document.getElementById('detailsName').innerText = info.event.title;
-                document.getElementById('detailsPhone').innerText = info.event.extendedProps.phone;
-                document.getElementById('detailsDate').innerText = info.event.extendedProps.date;
-                document.getElementById('detailsTime').innerText = info.event.extendedProps.time;
-                document.getElementById('detailsMessage').innerText = info.event.extendedProps.message || 'No message provided.';
+                document.getElementById('detailsPhone').innerText = props.phone;
+                document.getElementById('detailsDate').innerText = props.date;
+                document.getElementById('detailsTime').innerText = props.time;
+                document.getElementById('detailsMessage').innerText = props.message || 'N/A';
 
-                // --- Modal'ı Göster ---
+                // Önceki onay butonunu temizle
+                const oldApproveBtn = document.getElementById('approveEventBtn');
+                if (oldApproveBtn) oldApproveBtn.remove();
+
+                // Eğer randevu "pending" ise "Onayla" butonunu ekle
+                if (props.status === 'pending') {
+                    const approveBtn = document.createElement('button');
+                    approveBtn.id = 'approveEventBtn';
+                    approveBtn.className = 'btn btn-primary';
+                    approveBtn.innerText = 'Approve Appointment';
+                    modalFooter.prepend(approveBtn); // Sil butonunun önüne ekle
+
+                    approveBtn.onclick = function() {
+                        if (!confirm("Are you sure you want to approve this appointment? An email will be sent.")) return;
+
+                        fetch(`/api/approve_appointment/${info.event.id}`, { method: 'POST' })
+                        .then(res => res.json()).then(result => {
+                            if (result.success) {
+                                alert('Appointment Approved! Email sent.');
+                                detailsModal.style.display = 'none';
+                                calendar.refetchEvents(); // Takvimi yenile
+                            } else {
+                                alert('Error: ' + result.error);
+                            }
+                        }).catch(() => alert('Error'));
+                    }
+                }
+
                 detailsModal.style.display = 'block';
 
-                // --- Buton Olay Yöneticileri ---
-                // Silme Butonu
                 deleteBtn.onclick = function() {
-                    if (confirm(`'${info.event.title}' randevusunu silmek istediğinizden emin misiniz?`)) {
-                        fetch(`/api/delete_event/${info.event.id}`, { method: 'POST' })
+                    if (confirm(`'${info.event.title}' randevusunu kalıcı olarak silmek istediğinizden emin misiniz?`)) {
+                        fetch(`/api/delete_event/${info.event.id}`, { 
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        })
                         .then(res => res.json()).then(result => {
                             if (result.success) {
                                 detailsModal.style.display = 'none'; // Pencereyi kapat
-                                info.event.remove(); // Takvimden kaldır
+                                info.event.remove(); // Takvimden anında kaldır
                             } else {
                                 alert('Error deleting event: ' + result.error);
                             }
                         }).catch(() => alert('An unexpected error occurred.'));
                     }
                 }
-
-                // Kapatma Butonları
-                closeBtn.onclick = function() {
-                    detailsModal.style.display = 'none';
-                }
-                window.onclick = function(event) {
-                    if (event.target == detailsModal) {
-                        detailsModal.style.display = 'none';
-                    }
-                }
+                closeBtn.onclick = function() { detailsModal.style.display = 'none'; }
+                window.onclick = function(event) { if (event.target == detailsModal) detailsModal.style.display = 'none'; }
             },
+
             dateClick: function(info) {
                 eventForm.reset();
                 const clickedDate = info.date;

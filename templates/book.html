@@ -10,8 +10,16 @@
                 {{ form.name(class="form-control") }}
             </div>
             <div class="form-group">
+                {{ form.email.label(class="form-label") }}
+                {{ form.email(class="form-control", placeholder="For appointment confirmation") }}
+            </div>
+            <div class="form-group">
                 {{ form.phone.label(class="form-label") }}
                 {{ form.phone(class="form-control") }}
+            </div>
+            <div class="form-group">
+                {{ form.service.label(class="form-label") }}
+                {{ form.service(class="form-control") }}
             </div>
             <div class="form-group">
                 {{ form.date.label(class="form-label") }}
@@ -19,8 +27,7 @@
             </div>
             <div class="form-group">
                 {{ form.time.label(class="form-label") }}
-                {{ form.time(class="form-control") }}
-                <small id="time-loader" style="display: none;">Finding available times...</small>
+                {{ form.time(class="form-control") }} <small id="time-loader" style="display: none;">Finding available times...</small>
             </div>
             <div class="form-group">
                 {{ form.message.label(class="form-label") }}
@@ -34,37 +41,40 @@
 </div>
 
 {% block scripts %}
+<script src="https://unpkg.com/imask"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+
+    // --- GÜNCELLENMİŞ MÜSAİT SAAT KONTROL SCRİPTİ ---
+    const serviceSelect = document.getElementById('service');
     const dateInput = document.getElementById('date');
-    const timeSelect = document.getElementById('time');
+    const timeSelect = document.getElementById('time'); // Artık <select> listesini seçiyoruz
     const timeLoader = document.getElementById('time-loader');
 
-    // Tarih alanı değiştiğinde bu fonksiyon çalışır
-    dateInput.addEventListener('change', function() {
-        const selectedDate = this.value;
+    // Müsait saatleri getiren fonksiyon
+    function fetchAvailableSlots() {
+        const serviceId = serviceSelect.value;
+        const selectedDate = dateInput.value;
 
-        // Seçim yapılmadıysa saatleri temizle
-        if (!selectedDate) {
-            timeSelect.innerHTML = '<option value="">Select a date first</option>';
+        if (!serviceId || !selectedDate) {
+            timeSelect.innerHTML = '<option value="">Please select service and date first</option>';
             return;
         }
 
-        // Saatleri temizle ve yükleniyor mesajını göster
-        timeSelect.innerHTML = '';
+        timeSelect.innerHTML = ''; // Eski seçenekleri temizle
         timeLoader.style.display = 'block';
-        timeSelect.disabled = true;
+        timeSelect.disabled = true; // Yüklenirken listeyi kilitle
 
-        // API'ye istek atarak müsait saatleri al
-        fetch(`/api/available_slots/${selectedDate}`)
+        fetch(`/api/available_slots/${serviceId}/${selectedDate}`)
             .then(response => response.json())
             .then(slots => {
                 timeLoader.style.display = 'none';
-                timeSelect.disabled = false;
+                timeSelect.disabled = false; // Kilidi aç
 
                 if (slots.length > 0) {
                     timeSelect.innerHTML = '<option value="">Select a time</option>';
                     slots.forEach(slot => {
+                        // Buton yerine <option> oluştur
                         const option = document.createElement('option');
                         option.value = slot;
                         option.textContent = slot;
@@ -80,16 +90,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 timeSelect.disabled = false;
                 timeSelect.innerHTML = '<option value="">Error loading times</option>';
             });
-    });
+    }
+
+    // Hem hizmet hem de tarih değiştiğinde fonksiyonu tetikle
+    serviceSelect.addEventListener('change', fetchAvailableSlots);
+    dateInput.addEventListener('change', fetchAvailableSlots);
+
+    // BUTON TIKLAMA OLAYI SİLİNDİ (artık gerekli değil)
+
+    // --- TELEFON MASKESİ KODU (DEĞİŞMEDİ) ---
     const phoneElement = document.getElementById('phone');
     if (phoneElement) {
+        // ... (mevcut telefon maskesi kodunuz burada) ...
         const phoneMask = IMask(phoneElement, {
             mask: '+{90} (000) 000 00 00',
-            // Bu özellik, maskenin her zaman görünür olmasını sağlar
             lazy: false, 
-            // Bu özellik, kullanıcı silmeye çalıştığında bile maskenin sabit kısmını korur
             prepare: function (str) {
-                // Kullanıcı +90'ı silmeye çalışırsa engelle
                 if (str.startsWith('+9') && !str.startsWith('+90')) {
                     return '+90';
                 }

@@ -521,3 +521,26 @@ th {
     text-align: right;
 }
 
+/* Onaylandı (Yeşil) */
+.fc-event.fc-event-confirmed {
+    background-color: #28a745 !important; /* Başarı Yeşili */
+    border-color: #1c7430 !important;
+    color: white !important;
+}
+
+/* Onay Bekliyor (Turuncu) */
+.fc-event.fc-event-pending {
+    background-color: #ffc107 !important; /* Uyarı Sarısı/Turuncu */
+    border-color: #d39e00 !important;
+    color: #333 !important;
+}
+
+/* Bloklandı (Gri) - Bu zaten vardı ama yine de kontrol edelim */
+.fc-event.fc-event-blocked {
+    background: repeating-linear-gradient(45deg, #a9a9a9, #a9a9a9 10px, #808080 10px, #808080 20px) !important;
+    border: 1px solid #555 !important;
+    color: white !important;
+}
+
+/* Admin hizmet ekleme formu için küçük stil */
+.form-inline { display: flex; gap: 10px; }
