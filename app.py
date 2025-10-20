@@ -226,7 +226,7 @@ def login():
 @app.route('/logout')
 def logout():
     session.pop('admin_logged_in', None)  # Clear the session
-    flash('You have been logged out.', 'success')
+    flash('Başarıyla çıktınız.', 'success')
     return redirect(url_for('login'))
 
 
