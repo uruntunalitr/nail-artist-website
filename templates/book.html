@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container page-section">
-    <h1 class="page-title">Book Your Appointment</h1>
+    <h1 class="page-title">Randevunuzu Oluşturun</h1>
     <div class="form-container">
         <form method="POST" action="">
             {{ form.hidden_tag() }}
@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedDate = dateInput.value;
 
         if (!serviceId || !selectedDate) {
-            timeSelect.innerHTML = '<option value="">Please select service and date first</option>';
+            timeSelect.innerHTML = '<option value="">Lütfen önce hizmet ve tarih seçin</option>';
             return;
         }
 
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 timeSelect.disabled = false; // Kilidi aç
 
                 if (slots.length > 0) {
-                    timeSelect.innerHTML = '<option value="">Select a time</option>';
+                    timeSelect.innerHTML = '<option value="">Bir saat seçin</option>';
                     slots.forEach(slot => {
                         // Buton yerine <option> oluştur
                         const option = document.createElement('option');
@@ -81,14 +81,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         timeSelect.appendChild(option);
                     });
                 } else {
-                    timeSelect.innerHTML = '<option value="">No available slots for this day</option>';
+                    timeSelect.innerHTML = '<option value="">Bu tarih için müsait saat bulunmamaktadır.</option>';
                 }
             })
             .catch(error => {
                 console.error('Error fetching slots:', error);
                 timeLoader.style.display = 'none';
                 timeSelect.disabled = false;
-                timeSelect.innerHTML = '<option value="">Error loading times</option>';
+                timeSelect.innerHTML = '<option value="">Saatler yüklenirken hata oluştu.</option>';
             });
     }
 

@@ -7,13 +7,26 @@
 {% block content %}
 <div class="container page-section">
     <div class="dashboard-header">
-        <h1 class="page-title">Admin Dashboard</h1>
-        <p>Welcome back! Manage your appointments and gallery from here.</p>
+        <h1 class="page-title">Yönetim Paneli</h1>
+        <p>Tekrar hoş geldiniz! Randevularınızı, galerinizi ve hizmetlerinizi buradan yönetebilirsiniz.</p>
     </div>
+
+    <hr class="section-divider">
+
+    <div class="card">
+        <div class="card-header"><h3>Randevu Takvimi</h3></div>
+        <div class="card-body">
+            <div class="calendar-container">
+                <div id="calendar"></div>
+            </div>
+        </div>
+    </div>
+
+    <hr class="section-divider">
 
     <div class="dashboard-grid">
         <div class="card">
-            <div class="card-header"><h3>Upload New Photo</h3></div>
+            <div class="card-header"><h3>Yeni Fotoğraf Yükle</h3></div>
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
                     {{ photo_form.hidden_tag() }}
@@ -23,7 +36,7 @@
             </div>
         </div>
         <div class="card">
-            <div class="card-header"><h3>Upload New Video</h3></div>
+            <div class="card-header"><h3>Yeni Video Yükle</h3></div>
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
                     {{ video_form.hidden_tag() }}
@@ -37,20 +50,9 @@
     <hr class="section-divider">
 
     <div class="card">
-        <div class="card-header"><h3>Appointment Calendar</h3></div>
-        <div class="card-body">
-            <div class="calendar-container">
-                <div id="calendar"></div>
-            </div>
-        </div>
-    </div>
-
-    <hr class="section-divider">
-
-    <div class="card">
-        <div class="card-header"><h3>Manage Gallery</h3></div>
+        <div class="card-header"><h3>Galeriyi Yönet</h3></div>
         <div class="card-body">            
-            <h4>Photos</h4>
+            <h4>Fotoğraflar</h4>
             <div class="manage-gallery-grid">
                 {% for photo in photos %}
                 <div class="gallery-item-manage">
@@ -59,14 +61,14 @@
                         <a href="{{ url_for('move_item', item_type='photo', item_id=photo.id, direction='up') }}" class="btn btn-action move-btn">↑</a>
                         <a href="{{ url_for('move_item', item_type='photo', item_id=photo.id, direction='down') }}" class="btn btn-action move-btn">↓</a>
                         <form action="{{ url_for('delete_photo', photo_id=photo.id) }}" method="POST" onsubmit="return confirm('Delete this photo?');">
-                            <button type="submit" class="btn btn-danger btn-small">Delete</button>
+                            <button type="submit" class="btn btn-danger btn-small">Fotoğrafı Sil</button>
                         </form>
                     </div>
                 </div>
                 {% endfor %}
             </div>
             <hr>
-            <h4>Videos</h4>
+            <h4>Videolar</h4>
             <div class="manage-gallery-grid">
                 {% for video in videos %}
                 <div class="gallery-item-manage">
@@ -75,7 +77,7 @@
                         <a href="{{ url_for('move_item', item_type='video', item_id=video.id, direction='up') }}" class="btn btn-action move-btn">↑</a>
                         <a href="{{ url_for('move_item', item_type='video', item_id=video.id, direction='down') }}" class="btn btn-action move-btn">↓</a>
                         <form action="{{ url_for('delete_video', video_id=video.id) }}" method="POST" onsubmit="return confirm('Delete this video?');">
-                            <button type="submit" class="btn btn-danger btn-small">Delete Video</button>
+                            <button type="submit" class="btn btn-danger btn-small">Video'yu Sil</button>
                         </form>
                     </div>
                 </div>
@@ -86,20 +88,20 @@
     <hr class="section-divider">
 
     <div class="card">
-        <div class="card-header"><h3>Manage Services</h3></div>
+        <div class="card-header"><h3>Hizmetleri Yönet</h3></div>
         <div class="card-body">
-            <h4>Current Services</h4>
+            <h4>Mevcut Hizmetler</h4>
             <div class="table-responsive">
                 <table>
-                    <thead><tr><th>Name</th><th>Duration</th><th>Action</th></tr></thead>
+                    <thead><tr><th>Hizmet</th><th>Süre</th><th>Aksiyon</th></tr></thead>
                     <tbody>
                         {% for s in services %}
                         <tr>
                             <td>{{ s.name }}</td>
-                            <td>{{ s.duration }} min</td>
+                            <td>{{ s.duration }} dakika</td>
                             <td>
-                                <form action="{{ url_for('delete_service', service_id=s.id) }}" method="POST" onsubmit="return confirm('Delete this service?');">
-                                    <button type="submit" class="btn btn-danger btn-small">Delete</button>
+                                <form action="{{ url_for('delete_service', service_id=s.id) }}" method="POST" onsubmit="return confirm('Hizmeti silmek ister misin?');">
+                                    <button type="submit" class="btn btn-danger btn-small">Sil</button>
                                 </form>
                             </td>
                         </tr>
@@ -108,11 +110,11 @@
                 </table>
             </div>
             <hr>
-            <h4>Add New Service</h4>
+            <h4>Yeni Hizmet Ekle</h4>
             <form method="POST" class="form-inline">
                 {{ service_form.hidden_tag() }}
-                <div class="form-group">{{ service_form.name(class="form-control", placeholder="Service Name") }}</div>
-                <div class="form-group">{{ service_form.duration(class="form-control", placeholder="Duration (min)") }}</div>
+                <div class="form-group">{{ service_form.name(class="form-control", placeholder="Hizmetin Adı") }}</div>
+                <div class="form-group">{{ service_form.duration(class="form-control", placeholder="Süre (dakika)") }}</div>
                 {{ service_form.submit_service(class="btn btn-primary") }}
             </form>
         </div>
@@ -122,19 +124,19 @@
 <div id="eventModal" class="modal">
     <div class="modal-content">
         <span class="close-button">&times;</span>
-        <h3 id="modalTitle">Add/Block Time</h3>
+        <h3 id="modalTitle">Randevu Ekle / Zamanı Kapat</h3>
         <form id="eventForm">
             <input type="hidden" id="eventDate" name="date">
             <div class="form-group">
-                <label for="eventTime" class="form-label">Time</label>
+                <label for="eventTime" class="form-label">Zaman</label>
                 <input type="time" id="eventTime" name="time" class="form-control" required>
             </div>
             <div class="form-group">
-                <label for="eventName" class="form-label">Client Name</label>
+                <label for="eventName" class="form-label">Müşteri Adı</label>
                 <input type="text" id="eventName" name="name" class="form-control" placeholder="Leave blank if blocking time">
             </div>
             <div class="form-group">
-                <label for="eventPhone" class="form-label">Phone</label>
+                <label for="eventPhone" class="form-label">Telefon</label>
                 <input type="text" id="eventPhone" name="phone" class="form-control">
             </div>
             <div class="form-group">
@@ -143,7 +145,7 @@
                 <option value="confirmed">Book Appointment</option> <option value="blocked">Block This Time</option>
             </select>
             </div>
-            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="submit" class="btn btn-primary">Kaydet</button>
         </form>
     </div>
 </div>
@@ -151,16 +153,17 @@
 <div id="detailsModal" class="modal">
     <div class="modal-content">
         <span class="close-button">&times;</span>
-        <h3 id="detailsTitle">Appointment Details</h3>
+        <h3 id="detailsTitle">Randevu Detayları</h3>
         <div id="detailsBody" class="modal-body">
-            <p><strong>Client:</strong> <span id="detailsName"></span></p>
-            <p><strong>Phone:</strong> <span id="detailsPhone"></span></p>
-            <p><strong>Date:</strong> <span id="detailsDate"></span></p>
-            <p><strong>Time:</strong> <span id="detailsTime"></span></p>
-            <p><strong>Message:</strong> <span id="detailsMessage"></span></p>
+            <p><strong>Müşteri:</strong> <span id="detailsName"></span></p>
+            <p><strong>Telefon:</strong> <span id="detailsPhone"></span></p>
+            <p><strong>Hizmet:</strong> <span id="detailsService"></span></p>
+            <p><strong>Tarih:</strong> <span id="detailsDate"></span></p>
+            <p><strong>Saat:</strong> <span id="detailsTime"></span></p>
+            <p><strong>Mesaj</strong>:</strong> <span id="detailsMessage"></span></p>
         </div>
         <div class="modal-footer">
-            <button id="deleteEventBtn" class="btn btn-danger">Delete</button>
+            <button id="deleteEventBtn" class="btn btn-danger">Sil</button>
             </div>
     </div>
 </div>
@@ -241,7 +244,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return []; // Varsayılan
             },
             eventDrop: function(info) {
-                if (!confirm("Are you sure you want to move this appointment?")) {
+                if (!confirm("Bu randevunun tarihini değiştirmek istediğinizden emin misiniz?")) {
                     info.revert(); // Kullanıcı iptal ederse değişikliği geri al
                     return;
                 }
@@ -287,9 +290,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const modalFooter = detailsModal.querySelector('.modal-footer');
 
                 // --- Modal'ı Doldur ---
-                document.getElementById('detailsTitle').innerText = `Details for ${info.event.title}`;
+                document.getElementById('detailsTitle').innerText = `${info.event.title} - Randevu Detayları`;
                 document.getElementById('detailsName').innerText = info.event.title;
                 document.getElementById('detailsPhone').innerText = props.phone;
+                document.getElementById('detailsService').innerText = props.service_name || 'N/A';                
                 document.getElementById('detailsDate').innerText = props.date;
                 document.getElementById('detailsTime').innerText = props.time;
                 document.getElementById('detailsMessage').innerText = props.message || 'N/A';
@@ -303,16 +307,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     const approveBtn = document.createElement('button');
                     approveBtn.id = 'approveEventBtn';
                     approveBtn.className = 'btn btn-primary';
-                    approveBtn.innerText = 'Approve Appointment';
+                    approveBtn.innerText = 'Randevuyu onayla.';
                     modalFooter.prepend(approveBtn); // Sil butonunun önüne ekle
 
                     approveBtn.onclick = function() {
-                        if (!confirm("Are you sure you want to approve this appointment? An email will be sent.")) return;
+                        if (!confirm("Bu randevuyu onaylamak istediğinizden emin misiniz? Onayladığınızda e-posta gönderilecek.")) return;
 
                         fetch(`/api/approve_appointment/${info.event.id}`, { method: 'POST' })
                         .then(res => res.json()).then(result => {
                             if (result.success) {
-                                alert('Appointment Approved! Email sent.');
+                                alert('Randevu onaylandı. Eposta gönderildi.');
                                 detailsModal.style.display = 'none';
                                 calendar.refetchEvents(); // Takvimi yenile
                             } else {
@@ -363,7 +367,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 eventPhoneField.style.display = 'block';
                 eventStatusSelect.value = 'booked';
                 
-                modalTitle.innerText = `Add Event for ${eventDateField.value}`;
+                modalTitle.innerText = `Randevu Ekle ${eventDateField.value}`;
                 modal.style.display = 'block'; 
             }
         });

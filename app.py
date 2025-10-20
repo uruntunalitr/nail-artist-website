@@ -178,7 +178,7 @@ def book():
                 break
         
         if not is_safe_to_book:
-            flash('The selected time is no longer available or conflicts with another appointment. Please choose another time.', 'danger')
+            flash('Seçtiğiniz saat artık müsait değil veya başka bir randevuyla çakışıyor. Lütfen başka bir saat seçin.', 'danger')
             return render_template('book.html', title='Book Appointment', form=form)
         # --- GÜVENLİK KONTROLÜ SONU ---
 
@@ -197,7 +197,7 @@ def book():
         db.session.add(new_appointment)
         db.session.commit()
             
-        flash('Your appointment request has been sent! You will receive an email upon confirmation.', 'success')
+        flash('Randevu talebiniz alındı! Onaylandığında bir e-posta alacaksınız.', 'success')
         return redirect(url_for('index'))
         
     return render_template('book.html', title='Book Appointment', form=form)
@@ -216,10 +216,10 @@ def login():
         if form.password.data == ADMIN_PASSWORD:
             # Store login state in the session
             session['admin_logged_in'] = True
-            flash('You have been logged in!', 'success')
+            flash('Başarılı giriş yapıldı.', 'success')
             return redirect(url_for('admin'))
         else:
-            flash('Login Unsuccessful. Please check password', 'danger')
+            flash('Giriş başarısız. Şifrenizi kontrol edin.', 'danger')
     return render_template('login.html', title='Admin Login', form=form)
 
 
@@ -248,7 +248,7 @@ def admin():
         )
         db.session.add(new_service)
         db.session.commit()
-        flash('Service added successfully!', 'success')
+        flash('Hizmeti başarılı bir şekilde eklendi.', 'success')
         return redirect(url_for('admin'))
 
     # V-- THIS IS THE CORRECTED LOGIC --V
@@ -308,7 +308,7 @@ def delete_service(service_id):
     service = Service.query.get_or_404(service_id)
     db.session.delete(service)
     db.session.commit()
-    flash('Service has been deleted.', 'success')
+    flash('Hizmet silindi', 'success')
     return redirect(url_for('admin'))
 
 @app.route('/move/<item_type>/<int:item_id>/<direction>')
@@ -355,7 +355,7 @@ def delete_appointment(appointment_id):
     appointment = Appointment.query.get_or_404(appointment_id)
     db.session.delete(appointment)
     db.session.commit()
-    flash('Appointment has been deleted.', 'success')
+    flash('Randevu silindi.', 'success')
     return redirect(url_for('admin'))
 
 
@@ -371,7 +371,7 @@ def delete_photo(photo_id):
         flash(f'Error deleting file: {e}', 'danger')
     db.session.delete(photo)
     db.session.commit()
-    flash('Photo has been deleted.', 'success')
+    flash('Fotoğraf silindi.', 'success')
     return redirect(url_for('admin'))
 
 
@@ -387,7 +387,7 @@ def delete_video(video_id):
         flash(f'Error deleting file: {e}', 'danger')
     db.session.delete(video)
     db.session.commit()
-    flash('Video has been deleted.', 'success')
+    flash('Video silindi', 'success')
     return redirect(url_for('admin'))
 
 # app.py içindeki get_events() fonksiyonunu güncelleyin
@@ -435,15 +435,16 @@ def approve_appointment(appointment_id):
         db.session.commit()
 
         # Müşteriye onay e-postası gönder
-        msg = Message('Your Appointment is Confirmed!',
+        msg = Message('Randevunuz Onaylandı!',
                       sender=app.config['MAIL_USERNAME'],
                       recipients=[appointment.email])
+        
+        service_name = appointment.service.name if appointment.service else "talep ettiğiniz hizmet"
         msg.body = f"""
-        Hi {appointment.name},
+        Merhaba {appointment.name},
 
-        Your appointment for {appointment.service.name} on {appointment.date} at {appointment.time} has been confirmed!
-
-        See you soon!
+        Merhaba {appointment.name}, {appointment.date} tarihli ve {appointment.time} saatli {service_name} randevunuz onaylanmıştır! Görüşmek üzere!
+        
         - Funda Turalı Nail Artist
         """
         mail.send(msg)
@@ -519,18 +520,18 @@ def update_event(event_id):
         # Sadece 'onaylanmış' randevular için ve e-posta adresi varsa mail at
         if appointment.status == 'confirmed' and appointment.email:
             try:
-                msg = Message('Your Appointment Has Been Rescheduled',
+                msg = Message('Randevunuz Onaylandı!',
                               sender=app.config['MAIL_USERNAME'],
                               recipients=[appointment.email])
                 msg.body = f"""
-                Hi {appointment.name},
+                Merhaba {appointment.name},
 
-                Please note that your appointment has been rescheduled.
+                Randevunuz aşağıda yer alan tarih ve saatte olacak şekilde değiştirilmiştir.
 
-                New Date: {new_date_str}
-                New Time: {new_time_str}
+                Tarih: {new_date_str}
+                Saat: {new_time_str}
 
-                If this new time does not work for you, please contact us.
+                Eğer bu tarih ve saat size uygun değilse, lütfen bizimle iletişime geçin.
 
                 - Funda Turalı Nail Artist
                 """
