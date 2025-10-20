@@ -559,12 +559,42 @@ def delete_event(event_id):
 
     appointment = Appointment.query.get_or_404(event_id)
 
+    
     try:
+        # --- YENİ E-POSTA BİLDİRİM KODU ---
+        # Eğer randevunun bir e-posta adresi varsa ve statüsü 'blocked' değilse
+        if appointment.email and appointment.status != 'blocked':
+            try:
+                # Hizmet adını al (yoksa genel ifade kullan)
+                service_name = appointment.service.name if appointment.service else "randevunuz"
+
+                msg = Message('Randevunuz İptal Edildi', # Başlığı Türkçeleştirelim
+                              sender=app.config['MAIL_USERNAME'],
+                              recipients=[appointment.email])
+                msg.body = f"""
+                Merhaba {appointment.name},
+
+                {appointment.date} tarihli ve {appointment.time} saatli {service_name} maalesef iptal edilmiştir.
+
+                Yeni bir randevu almak isterseniz web sitemizi ziyaret edebilirsiniz.
+
+                Anlayışınız için teşekkürler.
+                - Funda Turalı Nail Artist
+                """
+                mail.send(msg)
+            except Exception as e:
+                # E-posta gitmese bile logla ve silmeye devam et
+                print(f"Cancellation Email sending failed (likely Render block or invalid email): {e}")
+        # --- E-POSTA KODU SONU ---
+
+        # Randevuyu veritabanından sil
         db.session.delete(appointment)
         db.session.commit()
         return jsonify({'success': True})
     except Exception as e:
         db.session.rollback()
+        # Silme işlemi sırasında bir veritabanı hatası olursa logla
+        print(f"Error during appointment deletion: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
